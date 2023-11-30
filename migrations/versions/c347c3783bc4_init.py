@@ -1,18 +1,18 @@
-"""init models
+"""init
 
-Revision ID: 6a8cb6ec0180
+Revision ID: c347c3783bc4
 Revises:
-Create Date: 2023-07-29 15:22:20.958378
+Create Date: 2023-09-28 21:40:43.234471
 
 """
-import sqlalchemy as sa
 import sqlalchemy_utils
 from alembic import op
+import sqlalchemy as sa
 
-from src.questionnaire.params_choice import BodyType, Gender, Goal, Passion
+from src.questionnaire.params_choice import Gender, Goal, BodyType
 
 # revision identifiers, used by Alembic.
-revision = "6a8cb6ec0180"
+revision = "c347c3783bc4"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -34,6 +34,12 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_auth_user_email"), "auth_user", ["email"], unique=True)
     op.create_table(
+        "user_questionnaire_hobby",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("hobby_name", sa.String(length=256), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_table(
         "black_list_user",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
@@ -49,25 +55,15 @@ def upgrade() -> None:
     )
     op.create_table(
         "match",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user1_id", sa.Uuid(), nullable=False),
-        sa.Column("user2_id", sa.Uuid(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(["user1_id"], ["auth_user.id"], ondelete="RESTRICT"),
-        sa.ForeignKeyConstraint(["user2_id"], ["auth_user.id"], ondelete="RESTRICT"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "message",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("message_text", sa.String(), nullable=False),
-        sa.Column("sender_id", sa.Uuid(), nullable=False),
-        sa.Column("receiver_id", sa.Uuid(), nullable=False),
-        sa.CheckConstraint("NOT(sender_id = receiver_id)", name="_message_cc"),
-        sa.ForeignKeyConstraint(["receiver_id"], ["auth_user.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["sender_id"], ["auth_user.id"], ondelete="CASCADE"),
+        sa.Column("user1_id", sa.Uuid(), nullable=False),
+        sa.Column("user2_id", sa.Uuid(), nullable=False),
+        sa.CheckConstraint("NOT(user1_id = user2_id)", name="_match_cc"),
+        sa.ForeignKeyConstraint(["user1_id"], ["auth_user.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["user2_id"], ["auth_user.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("user1_id", "user2_id", name="_match_uc"),
     )
     op.create_table(
         "user_like",
@@ -75,6 +71,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("liked_user_id", sa.Uuid(), nullable=False),
+        sa.Column("is_liked", sa.Boolean(), nullable=False),
         sa.CheckConstraint("NOT(user_id = liked_user_id)", name="_user_like_cc"),
         sa.ForeignKeyConstraint(
             ["liked_user_id"], ["auth_user.id"], ondelete="CASCADE"
@@ -86,7 +83,8 @@ def upgrade() -> None:
     op.create_table(
         "user_questionnaire",
         sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("firstname", sa.String(length=256), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("firstname", sa.String(length=256), nullable=True),
         sa.Column("lastname", sa.String(length=256), nullable=True),
         sa.Column(
             "gender", sqlalchemy_utils.types.choice.ChoiceType(Gender), nullable=True
@@ -97,9 +95,6 @@ def upgrade() -> None:
         sa.Column("latitude", sa.Numeric(precision=8, scale=5), nullable=True),
         sa.Column("longitude", sa.Numeric(precision=8, scale=5), nullable=True),
         sa.Column("about", sa.String(), nullable=True),
-        sa.Column(
-            "passion", sqlalchemy_utils.types.choice.ChoiceType(Passion), nullable=True
-        ),
         sa.Column("height", sa.Integer(), nullable=True),
         sa.Column(
             "goals", sqlalchemy_utils.types.choice.ChoiceType(Goal), nullable=True
@@ -119,21 +114,38 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("subscriber", sa.DateTime(), nullable=True),
         sa.Column("last_seen", sa.DateTime(), nullable=False),
+        sa.Column("search_range_min", sa.Integer(), nullable=False),
+        sa.Column("search_range_max", sa.Integer(), nullable=False),
+        sa.Column("search_age_min", sa.Integer(), nullable=False),
+        sa.Column("search_age_max", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["auth_user.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_table(
+        "user_hobby",
+        sa.Column("user_id", sa.Uuid(), nullable=False),
+        sa.Column("hobby_id", sa.Uuid(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["hobby_id"], ["user_questionnaire_hobby.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["user_questionnaire.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("user_id", "hobby_id"),
     )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_table("user_hobby")
     op.drop_table("user_settings")
     op.drop_table("user_questionnaire")
     op.drop_table("user_like")
-    op.drop_table("message")
     op.drop_table("match")
     op.drop_table("black_list_user")
+    op.drop_table("user_questionnaire_hobby")
     op.drop_index(op.f("ix_auth_user_email"), table_name="auth_user")
     op.drop_table("auth_user")
     # ### end Alembic commands ###

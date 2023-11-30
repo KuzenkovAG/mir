@@ -2,33 +2,29 @@ import asyncio
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
 
-import httpx
 import pytest
+from async_asgi_testclient import TestClient
 from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from src.config import settings
 from src.database import Base, async_session_maker
 from src.main import app
+from src.mongodb.mongodb import Mongo
 
-engine = create_async_engine(settings.db_url, poolclass=NullPool)
+engine = create_async_engine(settings.db_url_postgresql, poolclass=NullPool)
 
 pytest_plugins = [
     "tests.fixtures",
 ]
 
 
-@pytest.fixture()
+@pytest.fixture(autouse=True, scope="module")
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session_maker() as session:
-        yield session
-
-
-@pytest.fixture(autouse=True)
-async def _prepare_database() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield
+    async with async_session_maker() as session:
+        yield session
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
@@ -41,6 +37,12 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, Any, None]:
 
 
 @pytest.fixture(scope="session")
-async def async_client() -> AsyncGenerator[httpx.AsyncClient, None]:
-    async with httpx.AsyncClient(app=app, base_url="http://localhost:8000") as client:
+async def async_client() -> AsyncGenerator[TestClient, None]:
+    async with TestClient(app) as client:
         yield client
+
+
+@pytest.fixture(scope="session")
+async def mongo() -> AsyncGenerator[Mongo, None]:
+    from src.database import mongo
+    return mongo

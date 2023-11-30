@@ -15,6 +15,7 @@ from src.admin.auth_provider import EmailAndPasswordProvider
 from src.admin.utils import get_password_hash
 from src.admin.views import (
     BlackListUserView,
+    MatchView,
     MessageView,
     UserAuthView,
     UserLikeView,
@@ -22,10 +23,11 @@ from src.admin.views import (
     UserSettingsView,
 )
 from src.auth.models import AuthUser, UserSettings
+from src.chat.models import Message
 from src.config import settings
 from src.database import engine
 from src.likes.models import UserLike
-from src.posts.models import Message
+from src.matches.models import Match
 from src.questionnaire.models import BlackListUser, UserQuestionnaire
 
 
@@ -211,6 +213,10 @@ admin.add_view(
             UserLikeView(
                 UserLike,
                 label="Лайки",
+            ),
+            MatchView(
+                Match,
+                label="Совпадения",
             ),
         ],
     ),
